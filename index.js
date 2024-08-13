@@ -110,7 +110,22 @@ app.post("/", async (req, res) => {
           .status(500)
           .json({ message: "An error occurred. Please try again later." });
       }
-    } else {
+    } else if(categoryResult.trim().replace(/"/g , '')=="general_query") {
+      try {
+       
+        const final_data = {
+          query: userQuery,
+        };
+
+        const ai_response = responsesGemini();
+        finalResult = await ai_response(final_data);
+      } catch (error) {
+        console.log("Error while processing meals:", error);
+        res
+          .status(500)
+          .json({ message: "An error occurred. Please try again later." });
+      }
+    } else  {
       finalResult = categoryResult
     }
 
