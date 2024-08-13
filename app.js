@@ -7,7 +7,6 @@ const {
 const { categorizeDBGemini, responsesGemini } = require("./geminiMethods");
 const db = require("./service");
 const cors = require("cors");
-const { json } = require("body-parser");
 const app = express();
 
 //calling the categories fetching function only once on server start
@@ -38,8 +37,6 @@ fetchLocationSpecificFoods(location)
 
 //using middleware ejs for the views
 app.use(express.json());
-app.engine("html", require("ejs").renderFile);
-app.use(express.static("public")); //for styles
 app.use(
   cors({
     origin: "http://localhost:3000",
