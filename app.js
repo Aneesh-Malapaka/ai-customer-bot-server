@@ -1,8 +1,13 @@
 const express = require("express");
-const {fetchCategoriesAndStore, fetchCategorySpecificFoods} = require("./fetchingData");
+const {
+  fetchCategoriesAndStore,
+  fetchCategorySpecificFoods,
+  fetchLocationSpecificFoods,
+} = require("./fetchingData");
 const { categorizeDBGemini, responsesGemini } = require("./geminiMethods");
 const db = require("./service");
 const cors = require("cors");
+const { json } = require("body-parser");
 const app = express();
 
 //calling the categories fetching function only once on server start
@@ -13,7 +18,7 @@ fetchCategoriesAndStore()
   .catch((error) => {
     console.error("Failed to fetch categories:", error);
   });
-const category = "Dessert";
+const category = "SeaFood";
 fetchCategorySpecificFoods(category)
   .then(() => {
     console.log("Meals fetched and stored successfully.");
@@ -22,16 +27,27 @@ fetchCategorySpecificFoods(category)
     console.error("Failed to fetch categories:", error);
   });
 
+const location = "Russian";
+fetchLocationSpecificFoods(location)
+  .then(() => {
+    console.log("Meals fetched from Location and stored successfully.");
+  })
+  .catch((error) => {
+    console.error("Failed to fetch location meals:", error);
+  });
+
 //using middleware ejs for the views
 app.use(express.json());
 app.engine("html", require("ejs").renderFile);
 app.use(express.static("public")); //for styles
-app.use(cors({
-    origin: 'http://localhost:3000', 
-}));
+app.use(
+  cors({
+    origin: "http://localhost:3000",
+  })
+);
 
 app.get("/", (req, res) => {
-  res.render("index.html");
+  res.send("Server is up and running")
 });
 
 app.post("/", async (req, res) => {
@@ -41,54 +57,75 @@ app.post("/", async (req, res) => {
     const categorize = categorizeDBGemini();
     // console.log(categorize)
     const categoryResult = await categorize(userQuery);
-   
-    if (categoryResult.trim() === "list_categories") {
-        try {
-            const categories = await retrieveCategories();
-            
-            // Create final data to pass to the AI
-            const finalData = {
-                query: userQuery,
-                data: categories,
-            };
-            
-            
-            const ai_response = responsesGemini();
-            const finalResult = await ai_response(finalData);
-            
-            
-            res.status(200).json({
-                message: finalResult,
-            });
-        } catch (error) {
-            console.log("Error while processing list_categories:", error);
-            res.status(500).json({ message: "An error occurred. Please try again later." });
-        }
-    } 
-    else if(categoryResult.trim() === "category"){
-        try{
-            const mealsFetched = await retrieveMealsFromCategory();
+    console.log(categoryResult.trim().replace(/"/g , ''), typeof(categoryResult), "Hi");
 
-            const final_data = {
-                query: userQuery,
-                data: mealsFetched,
-            };
+    let finalResult;
+    if (categoryResult.trim().replace(/"/g , '') === "list_categories") {
+      try {
+        const categories = await retrieveCategories();
 
-            const ai_response = responsesGemini();
-            const final_result = await ai_response(final_data);
-            
-            res.status(200).json({
-                message: final_result,
-            });
-        }catch(error){
-            console.log("Error while processing meals:", error);
-            res.status(500).json({ message: "An error occurred. Please try again later." });
-        }
-    }else {
-      res.status(200).json({
-        message: categoryResult,
-      });
+        // Create final data to pass to the AI
+        const finalData = {
+          query: userQuery,
+          data: categories,
+        };
+
+        const ai_response = responsesGemini();
+        finalResult = await ai_response(finalData);
+        console.log(finalResult)
+      } catch (error) {
+        console.log("Error while processing list_categories:", error);
+        res
+          .status(500)
+          .json({ message: "An error occurred. Please try again later." });
+      }
+    } else if (categoryResult.trim().replace(/"/g , '') === "category") {
+      try {
+        const mealsFetched = await retrieveMealsFromCategory();
+
+        const final_data = {
+          query: userQuery,
+          data: mealsFetched,
+        };
+
+        const ai_response = responsesGemini();
+        finalResult = await ai_response(final_data);
+      } catch (error) {
+        console.log("Error while processing meals:", error);
+        res
+          .status(500)
+          .json({ message: "An error occurred. Please try again later." });
+      }
+    } else if (categoryResult.trim().replace(/"/g , '') === "country_cuisine") {
+      try {
+        const mealsFetched = await retrieveMealsFromLocation();
+        console.log(mealsFetched)
+        const final_data = {
+          query: userQuery,
+          data: mealsFetched,
+        };
+
+        const ai_response = responsesGemini();
+        finalResult = await ai_response(final_data);
+      } catch (error) {
+        console.log("Error while processing meals:", error);
+        res
+          .status(500)
+          .json({ message: "An error occurred. Please try again later." });
+      }
+    } else {
+      finalResult = categoryResult
     }
+
+    let jsonResponse;
+    try {
+      jsonResponse = JSON.parse(finalResult);
+      console.log(jsonResponse)
+    } catch (error) {
+      jsonResponse = { message: finalResult };
+    }
+
+    res.status(200).json(jsonResponse);
   } catch (error) {
     console.log(error);
     res
@@ -103,14 +140,14 @@ app.listen(5000, () => {
 
 async function retrieveCategories() {
   try {
-    const categorySnapshot = await db.collection("categories").get(); 
+    const categorySnapshot = await db.collection("categories").get();
 
     if (!categorySnapshot.empty) {
       const categories = [];
       categorySnapshot.forEach((doc) => {
-        categories.push(doc.data().strCategory); 
+        categories.push(doc.data().strCategory);
       });
-      return categories; 
+      return categories;
     } else {
       console.log("No categories found in the database.");
     }
@@ -127,12 +164,34 @@ async function retrieveMealsFromCategory() {
       const meals = [];
       mealsSnapshot.forEach((doc) => {
         meals.push({
-            category: doc.data().category,
-            name: doc.data().strMeal,
-        }); 
+          category: doc.data().category,
+          name: doc.data().strMeal,
+        });
       });
-      
-      return meals; 
+
+      return meals;
+    } else {
+      console.log("No meals found in the database.");
+    }
+  } catch (error) {
+    console.error("Error fetching meals:", error);
+  }
+}
+
+async function retrieveMealsFromLocation() {
+  try {
+    const mealsSnapshot = await db.collection("location_meals").get();
+
+    if (!mealsSnapshot.empty) {
+      const meals = [];
+      mealsSnapshot.forEach((doc) => {
+        meals.push({
+          location: doc.data().location,
+          name: doc.data().strMeal,
+        });
+      });
+
+      return meals;
     } else {
       console.log("No meals found in the database.");
     }

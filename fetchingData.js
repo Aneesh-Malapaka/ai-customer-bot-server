@@ -32,6 +32,7 @@ async function fetchCategorySpecificFoods(category){
       // `https://www.themealdb.com/api/json/v1/1/filter.php?c=Vegetarian`
     )
     const foods = response.data.meals
+    // console.log(foods)
     const filteredMeals = foods.map((food)=>{
      food.category = category
       const {strMealThumb, ...filteredMeal} = food
@@ -47,7 +48,32 @@ async function fetchCategorySpecificFoods(category){
     console.log(error);
   }
 }
+
+async function fetchLocationSpecificFoods(location){
+  try{
+    const response = await axios.get(
+      `https://www.themealdb.com/api/json/v1/1/filter.php?a=${location}`
+      // `https://www.themealdb.com/api/json/v1/1/filter.php?c=Vegetarian`
+    )
+    const foods = response.data.meals
+    const filteredMeals = foods.map((food)=>{
+     food.location = location
+      const {strMealThumb, ...filteredMeal} = food
+      return filteredMeal
+    })
+    const batch = db.batch()
+    filteredMeals.slice(0,6).forEach((meal)=>{
+      const mealRef = db.collection("location_meals").doc(meal.idMeal)
+      batch.set(mealRef, meal)
+    });
+    await batch.commit()
+  }catch (error) {
+    console.log(error);
+  }
+}
+
 module.exports = {
   fetchCategoriesAndStore,
-  fetchCategorySpecificFoods
+  fetchCategorySpecificFoods,
+  fetchLocationSpecificFoods,
 };
