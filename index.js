@@ -37,12 +37,11 @@ fetchLocationSpecificFoods(location)
 
 //using middleware ejs for the views
 app.use(express.json());
-app.use(
-  cors({
-    origin: ["http://localhost:3000", "https://ai-customer-bot.vercel.app/"],
-    methods: ["GET", "POST", "OPTIONS"],
-  })
-);
+app.use(cors({
+  origin: ["http://localhost:3000", "https://ai-customer-bot.vercel.app/"],
+  methods: ["GET", "POST", "OPTIONS"], 
+  allowedHeaders: ["Content-Type", "Authorization"], 
+}));
 
 app.get("/", (req, res) => {
   res.send("Server is up and running")
